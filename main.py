@@ -1,7 +1,9 @@
 from tkinter import *
 
 # TODO: add periodic boundary conditions
-
+# TODO: fix the freeze when trying to close the window
+# TODO: adjust FPS (the same self.fps with different cell sizes performs differently)
+# TODO: refactor
 
 # a subclass of Canvas for dealing with resizing of windows
 # https://stackoverflow.com/a/22837522/15484665
@@ -26,19 +28,10 @@ class ResizingCanvas(Canvas):
 
 class GameOfLife:
     # TODO: move this into init func
-    # TODO: pick WIDTH and HEIGHT based on the size of the screen
-    WIDTH = 750
-    HEIGHT = 750
 
-    WIDTH_COUNT = 20
-    HEIGHT_COUNT = 20
-
-    HORIZONTAL_SIZE = WIDTH / WIDTH_COUNT
-    VERTICAL_SIZE = HEIGHT / HEIGHT_COUNT
-
-    BACKGROUND_COLOR = 'white'
-    RUNNING_COLOR = 'black'
-    DRAWING_COLOR = '#545454'
+    BACKGROUND_COLOR = 'black'
+    RUNNING_COLOR = 'white'
+    DRAWING_COLOR = 'yellow' #'#545454'
     OUTLINE_COLOR = 'black'
 
     DRAWING_DELAY = 1
@@ -49,10 +42,15 @@ class GameOfLife:
         self.canvas_cells = []
 
         self.root = Tk()
+
+        self.width = 3*900/4
+        self.height = 3*900/4
+
         self.root.resizable(0, 0)
+        self.root.title("Yehor's Game of Life")
         self.frame = Frame(self.root)
         self.frame.pack(fill=BOTH, expand=YES)
-        self.canvas = ResizingCanvas(self.frame, width=self.WIDTH, height=self.HEIGHT,
+        self.canvas = ResizingCanvas(self.frame, width=self.width, height=self.height,
                                      bg=self.BACKGROUND_COLOR, highlightthickness=0)
         self.canvas.pack(fill=BOTH, expand=YES)
 
@@ -61,17 +59,32 @@ class GameOfLife:
         self.canvas.bind("<Button-1>", self.mouse_clicked)
         self.canvas.bind("<B1-Motion>", self.mouse_moved)
         self.canvas.bind("<ButtonRelease-1>", self.mouse_released)
-        self.canvas.bind("<MouseWheel>", self.mouse_wheel_callback)
+        #self.canvas.bind("<MouseWheel>", self.mouse_wheel_callback)
 
-        self.init_cells()
+        self.horizontal_count = self.vertical_count = self.horizontal_size = self.vertical_size = None
+        self.set_cell_count(25, 25)
 
         self.running = False
         self.alive_cell_selected = None
 
         # Number of frames per second
         # TODO: move to init (double check the value > 0)
-        self.fps = 120
+        self.fps = 100
         self.running_delay = int(1000 / self.fps)
+
+    def set_cell_count(self, horizontally, vertically):
+        self.horizontal_count = horizontally
+        self.vertical_count = vertically
+
+        self.horizontal_size = self.width / horizontally
+        self.vertical_size = self.height / vertically
+
+        # TODO: rather than creating a new array, resize the previous
+        self.init_cells()
+
+    def canvas_cells_at(self, x, y):
+        """Returns the cell with coordinates (x, y)"""
+        return self.canvas_cells[y][x]
 
     def run(self):
         """Begins the simulation"""
@@ -90,17 +103,23 @@ class GameOfLife:
 
     def init_cells(self):
         """Initializes internal structure for storing GUI cells"""
-        for i in range(self.HEIGHT_COUNT):
+        self.canvas_cells = []
+        for i in range(self.vertical_count):
             temp_list = []
-            for j in range(self.WIDTH_COUNT):
-                temp_list.append(self.canvas.create_rectangle(self.HORIZONTAL_SIZE * j, self.VERTICAL_SIZE * i,
-                                 self.HORIZONTAL_SIZE * (j + 1), self.VERTICAL_SIZE * (i + 1),
-                                 fill=self.BACKGROUND_COLOR, outline=self.OUTLINE_COLOR))
+            for j in range(self.horizontal_count):
+                temp_list.append(self.canvas.create_rectangle(self.horizontal_size * j, self.vertical_size * i,
+                                                              self.horizontal_size * (j + 1), self.vertical_size * (i + 1),
+                                                              fill=self.BACKGROUND_COLOR, outline=self.OUTLINE_COLOR, tag="all"))
             self.canvas_cells.append(temp_list)
 
     def mainloop(self):
         self.refresh()
         self.root.mainloop()
+
+    def increment_delay(self, factor):
+        new_running_delay = self.running_delay + factor
+        if new_running_delay > 0:
+            self.running_delay = new_running_delay
 
     def key_pressed(self, event):
         if event.char == ' ':
@@ -108,9 +127,17 @@ class GameOfLife:
                 self.reset()
             else:
                 self.run()
+
+        # TODO: check if this is a cross-platform behaviour
         # Backspace is pressed
         elif event.char == '\x7f':
             self.stop()
+        # Left arrow is pressed
+        elif event.char == '\uf702':
+            self.increment_delay(50)
+        # Right arrow is pressed
+        elif event.char == '\uf703':
+            self.increment_delay(-50)
 
     def mouse_clicked(self, event):
         if self.running:
@@ -139,14 +166,14 @@ class GameOfLife:
         self.alive_cell_selected = None
 
     def mouse_wheel_callback(self, event):
-        print(event.delta)
+        self.set_cell_count(self.horizontal_count - event.delta or 1, self.vertical_count - event.delta or 1)
 
     def cell_coord(self, y, x):
         """
         Given coordinates (x, y) in the window, return the coordinates of the cell this point is in. Assume that,
-        in returned coordinates, (HORIZONTAL_SIZE, 0) and (0, VERTICAL_SIZE) are basis vectors.
+        in returned coordinates, (horizontal_size, 0) and (0, VERTICAL_SIZE) are basis vectors.
         """
-        return int(y / self.VERTICAL_SIZE), int(x / self.HORIZONTAL_SIZE)
+        return int(y / self.vertical_size), int(x / self.horizontal_size)
 
     def count_neighbours(self, i, j):
         possible_neighbours = self.get_neighbours(i, j)
@@ -184,7 +211,7 @@ class GameOfLife:
                 self.canvas.itemconfig(j, fill=self.BACKGROUND_COLOR)
 
 # TODO: add start/stop buttons and speed control.
-# TODO: add scrolling feature
+# TODO: add zooming feature
 
     def refresh(self):
         self.clear()
@@ -198,10 +225,18 @@ class GameOfLife:
             if len(self.alive_cells) == 0:
                 self.reset()
 
+        # FIXME: Here I assume than height_count and ..._COUNT is an odd number
+        # h = (self.height_count - 1) / 2
+        # w = (self.width_count - 1) / 2
+
         for i, j in self.alive_cells:
-            if (not (0 <= i < self.HEIGHT_COUNT)) or (not (0 <= j < self.WIDTH_COUNT)):
+            if (not (0 <= i < self.vertical_count)) or (not (0 <= j < self.horizontal_count)):
                 continue
-            self.canvas.itemconfig(self.canvas_cells[i][j], fill=color)
+
+            # if (not (-h <= i <= h)) or (not (-w <= j <= w)):
+            #     continue
+
+            self.canvas.itemconfig(self.canvas_cells_at(j, i), fill=color)
 
         self.root.after(delay, self.refresh)
 
