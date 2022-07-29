@@ -1,2 +1,4 @@
 GameOfLife
 ==========
+
+![Preview](preview.png)

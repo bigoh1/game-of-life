@@ -54,7 +54,10 @@ class GameOfLife:
                                      bg=self.BACKGROUND_COLOR, highlightthickness=0)
         self.canvas.pack(fill=BOTH, expand=YES)
 
+        self.canvas.bind("<space>", self.do_space)
+        self.canvas.bind("<BackSpace>", self.do_backspace)
         self.canvas.bind("<Key>", self.key_pressed)
+
         self.canvas.focus_set()
         self.canvas.bind("<Button-1>", self.mouse_clicked)
         self.canvas.bind("<B1-Motion>", self.mouse_moved)
@@ -121,22 +124,25 @@ class GameOfLife:
         if new_running_delay > 0:
             self.running_delay = new_running_delay
 
-    def key_pressed(self, event):
-        if event.char == ' ':
-            if self.running:
-                self.reset()
-            else:
-                self.run()
+    def do_space(self, event):
+        if self.running:
+            self.reset()
+        else:
+            self.run()
 
-        # TODO: check if this is a cross-platform behaviour
-        # Backspace is pressed
-        elif event.char == '\x7f':
-            self.stop()
-        # Left arrow is pressed
-        elif event.char == '\uf702':
+    def do_backspace(self, event):
+        self.stop()
+
+    # def do_left_arrow(self, event):
+    #     self.increment_delay(50)
+
+    # def do_right_arrow(self, event):
+    #     self.increment_delay(-50)
+
+    def key_pressed(self, event):
+        if event.keysym == "Left":
             self.increment_delay(50)
-        # Right arrow is pressed
-        elif event.char == '\uf703':
+        elif event.keysym == "Right":
             self.increment_delay(-50)
 
     def mouse_clicked(self, event):
